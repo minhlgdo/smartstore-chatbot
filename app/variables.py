@@ -8,4 +8,3 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 OPENAI_MODEL = "gpt-4o-mini"
 FAQ_DATA_PATH = "assets/final_result.pkl"
 DB_NAME = "chatbot_db"
-MAX_TOKENS = 8000  # the maximum for text-embedding-3-small is 8191
