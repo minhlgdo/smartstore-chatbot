@@ -1,32 +1,71 @@
+import logging
 import chromadb
 import pickle
 from app.variables import EMBEDDING_MODEL, FAQ_DATA_PATH
 from app.openai_client import client
+from chromadb.config import Settings
+import tiktoken
 
-chromadb_client = chromadb.PersistentClient(path="./chroma_db")
+chromadb_client = chromadb.PersistentClient(
+    path="./chroma", settings=Settings(allow_reset=True)
+)
 collection = chromadb_client.get_or_create_collection("smartstore_faq")
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
 def compute_embedding(text: str):
-    response = client.embeddings.create(
-        input=text,
-        model=EMBEDDING_MODEL
-    )
+    response = client.embeddings.create(input=text, model=EMBEDDING_MODEL)
     return response.data[0].embedding
+
+
+def clean_text(text: str) -> str:
+    res = text.replace(
+        """
+
+위 도움말이 도움이 되었나요?
+
+
+별점1점
+
+별점2점
+
+별점3점
+
+별점4점
+
+별점5점
+
+
+
+소중한 의견을 남겨주시면 보완하도록 노력하겠습니다.
+
+보내기""",
+        "",
+    )
+    res = res.replace("도움말 닫기", "")
+
+    return res
+
 
 def populate_vector_db():
     with open(FAQ_DATA_PATH, "rb") as f:
         data = pickle.load(f)
-    
+
     for idx, (question, answer) in enumerate(data.items()):
-        document = f"Q: {question}\nA: {answer}"
+        # Clean the answer part
+        _answer = clean_text(answer)
+
+        document = f"Q: {question}\nA: {_answer}"
         embedding = compute_embedding(document)
         metadata = {"id": str(idx), "question": question}
-        collection.add(
+        collection.upsert(
             embeddings=[embedding],
             documents=[document],
             ids=[str(idx)],
-            metadatas=[metadata]
+            metadatas=[metadata],
         )
+
 
 def is_relevant_query(query: str, threshold: float = 0.3) -> bool:
     """
@@ -37,12 +76,19 @@ def is_relevant_query(query: str, threshold: float = 0.3) -> bool:
     results = collection.query(
         query_embeddings=[embedding],
         n_results=1,
-        include=["distances"]  # ensure distances are returned
+        include=["distances"],  # ensure distances are returned
     )
 
     if "distances" in results and results["distances"]:
         best_distance = results["distances"][0][0]
         print(f"Best distance: {best_distance}")
         return best_distance < threshold
-    
+
     return False
+
+if collection.count() == 0:
+    logging.info("Populating vector DB with FAQ data...")
+    populate_vector_db()
+    logging.info("Vector DB populated successfully.")
+else:
+    logging.info("Vector DB already populated.")

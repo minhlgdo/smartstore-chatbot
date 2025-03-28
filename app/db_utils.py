@@ -49,3 +49,5 @@ def get_chat_history(session_id):
         ])
     conn.close()
     return messages
+
+create_chat_logs_table()
