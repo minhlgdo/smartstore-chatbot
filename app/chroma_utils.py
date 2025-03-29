@@ -9,7 +9,9 @@ from chromadb.config import Settings
 chromadb_client = chromadb.PersistentClient(
     path="./chroma", settings=Settings(allow_reset=True)
 )
-collection = chromadb_client.get_or_create_collection("smartstore_faq")
+collection = chromadb_client.get_or_create_collection(
+    name="smartstore_faq", metadata={"hnsw:space": "cosine"}
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +47,27 @@ def populate_vector_db():
             )
 
 
-def is_relevant_query(query: str, threshold: float = 0.3) -> bool:
+def get_relevant_faq(question: str, n_results: int = 3) -> str:
+    """
+    Retrieve the most relevant FAQ questions from the vector store based on the input question.
+    """
+    embedding = compute_embedding(question)
+    results = collection.query(
+        query_embeddings=[embedding],
+        n_results=n_results,
+        include=["documents"],
+    )
+
+    if "documents" in results and results["documents"]:
+        documents = results["documents"][0]
+        if documents:
+            # join the documents into a single string
+            return "\n\n".join(documents)
+        
+    return ""
+
+
+def is_relevant_query(query: str, threshold: float = 0.45) -> bool:
     """
     Check the relevance of the query against the FAQ data stored in the vector store.
     Returns True if the best matching FAQ question has a distance below the threshold.
