@@ -161,3 +161,4 @@ cython_debug/
 
 chroma
 test.ipynb
+chatbot_db
