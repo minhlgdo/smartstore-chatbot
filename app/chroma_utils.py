@@ -1,6 +1,7 @@
 import logging
 import chromadb
 import pickle
+import openai
 from app.text_utils import clean_text, sliding_window_split_text
 from app.variables import EMBEDDING_MODEL, FAQ_DATA_PATH
 from app.openai_client import client
@@ -18,8 +19,16 @@ logging.basicConfig(level=logging.INFO)
 
 
 def compute_embedding(text: str):
-    response = client.embeddings.create(input=text, model=EMBEDDING_MODEL)
-    return response.data[0].embedding
+    try:
+        response = client.embeddings.create(input=text, model=EMBEDDING_MODEL)
+        return response.data[0].embedding
+    except Exception as e:
+        logging.error(f"Error computing embedding: {e}")
+        return None
+    except openai.OpenAIError as e:
+        logging.error(f"OpenAI API error: {e}")
+        return None
+    
 
 
 def populate_vector_db():
@@ -35,6 +44,10 @@ def populate_vector_db():
 
         for chunk_idx, chunk in enumerate(chunks):
             embedding = compute_embedding(chunk)
+            if embedding is None:
+                logging.error(f"Failed to compute embedding for chunk: {chunk}")
+                continue
+
             col_id = f"{data_idx}_{chunk_idx}"
             metadata = {"id": f"{col_id}", "question": question, "chunk_idx": chunk_idx}
             logging.info(f"Adding document id {col_id} to vector DB")
@@ -52,6 +65,10 @@ def get_relevant_faq(question: str, n_results: int = 3) -> str:
     Retrieve the most relevant FAQ questions from the vector store based on the input question.
     """
     embedding = compute_embedding(question)
+    if embedding is None:
+        logging.error(f"Failed to compute embedding for question: {question}")
+        return ""
+    
     results = collection.query(
         query_embeddings=[embedding],
         n_results=n_results,
@@ -74,6 +91,10 @@ def is_relevant_query(query: str, threshold: float = 0.6) -> bool:
     Returns True if the best matching FAQ question has a distance below the threshold.
     """
     embedding = compute_embedding(query)
+    if embedding is None:
+        logging.error(f"Failed to compute embedding for query: {query}")
+        return False
+    
     results = collection.query(
         query_embeddings=[embedding],
         n_results=1,

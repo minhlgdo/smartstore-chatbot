@@ -2,7 +2,7 @@ import openai
 import asyncio
 import logging
 
-from app.variables import OPENAI_API_KEY, OPENAI_MODEL
+from app.variables import ANSWER_ERROR_MESSAGE, OPENAI_API_KEY, OPENAI_MODEL, QUESTION_ERROR_MESSAGE
 
 openai.api_key = OPENAI_API_KEY
 client = openai.OpenAI()
@@ -15,19 +15,26 @@ async def generate_answer(faq_context: str, question: str):
     Question: {question}
     Relevant documents: {faq_context}
     """
-    response = client.responses.create(
-            model=OPENAI_MODEL,
-            instructions="You are a Naver Smart Store chatbot that generates answers based on the user's queries, conversation history, and related documents.",
-            input=request,
-            stream=True,
-        )
-    
-    for chunk in response:
-        if chunk.type == "response.completed":
-            logging.info("Answer generation completed")
-        elif chunk.type == "response.output_text.delta":
-            await asyncio.sleep(0)
-            yield chunk.delta
+    try:
+        response = client.responses.create(
+                model=OPENAI_MODEL,
+                instructions="You are a Naver Smart Store chatbot that generates answers based on the user's queries, conversation history, and related documents.",
+                input=request,
+                stream=True,
+            )
+        
+        for chunk in response:
+            if chunk.type == "response.completed":
+                logging.info("Answer generation completed")
+            elif chunk.type == "response.output_text.delta":
+                await asyncio.sleep(0)
+                yield chunk.delta
+    except Exception as e:
+        logging.error(f"Error generating answer: {e}")
+        yield ANSWER_ERROR_MESSAGE
+    except openai.OpenAIError as e:
+        logging.error(f"OpenAI API error: {e}")
+        yield ANSWER_ERROR_MESSAGE
 
 
 async def generate_followup_questions(history: str, faq_context: str, is_previously_relevant: bool = False):
@@ -42,20 +49,26 @@ async def generate_followup_questions(history: str, faq_context: str, is_previou
         Generate 1-2 follow-up questions based on the conversation history and relevant documents. These questions should only related to the Smart Store. The output should start with -.
         Conversation history: \n{history}
         """
+        
+    try: 
+        raw_response = client.responses.create(
+            model=OPENAI_MODEL,
+            instructions="You are a Naver Smart Store chatbot that generates answers based on the user's queries, conversation history, and related documents.",
+            input=request,
+            stream=True,
+        )
 
-    # logging.info(f"Request for follow-up questions: {request}")
-
-    raw_response = client.responses.create(
-        model=OPENAI_MODEL,
-        instructions="You are a Naver Smart Store chatbot that generates answers based on the user's queries, conversation history, and related documents.",
-        input=request,
-        stream=True,
-    )
-
-    for chunk in raw_response:
-        if chunk.type == "response.completed":
-            logging.info("Follow-up questions generation completed")
-        elif chunk.type == "response.output_text.delta":
-            await asyncio.sleep(0)
-            yield chunk.delta
+        for chunk in raw_response:
+            if chunk.type == "response.completed":
+                logging.info("Follow-up questions generation completed")
+            elif chunk.type == "response.output_text.delta":
+                await asyncio.sleep(0)
+                yield chunk.delta
+    
+    except Exception as e:
+        logging.error(f"Error generating follow-up questions: {e}")
+        yield QUESTION_ERROR_MESSAGE
+    except openai.OpenAIError as e:
+        logging.error(f"OpenAI API error: {e}")
+        yield QUESTION_ERROR_MESSAGE
 

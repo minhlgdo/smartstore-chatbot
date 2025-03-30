@@ -7,6 +7,7 @@ from app.chroma_utils import get_relevant_faq, is_relevant_query
 from app.db_utils import get_chat_history, insert_chat_log
 from app.models import QueryInput
 from app.openai_client import generate_answer, generate_followup_questions
+from app.variables import ANSWER_ERROR_MESSAGE, QUESTION_ERROR_MESSAGE
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,9 @@ async def generate_full_chat_answer(session_id: str, faq_context: str, question:
         async for answer_chunk in generate_answer(
             faq_context=faq_context, question=question
         ):
+            if answer_chunk == ANSWER_ERROR_MESSAGE:
+                yield answer_chunk
+                return
             full_answer += answer_chunk
             yield answer_chunk
 
@@ -50,6 +54,9 @@ async def generate_full_chat_answer(session_id: str, faq_context: str, question:
         faq_context=faq_context,
         is_previously_relevant=is_relevant,
     ):
+        if question_chunk == QUESTION_ERROR_MESSAGE:
+            yield question_chunk
+            return
         yield question_chunk
 
 
@@ -60,6 +67,11 @@ async def chat(query: QueryInput):
 
     # Generate relevant FAQ context
     faq_context = get_relevant_faq(question)
+    if not faq_context or faq_context == "":
+        return StreamingResponse(
+            iter(["응답을 생성 중에 오류가 발생했습니다. 다시 시도해주세요."]), media_type="text/event-stream"
+        )
+    
     logging.info(f"FAQ context: {faq_context}")
 
     return StreamingResponse(
