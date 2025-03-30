@@ -60,6 +60,7 @@ async def chat(query: QueryInput):
 
     # Generate relevant FAQ context
     faq_context = get_relevant_faq(question)
+    logging.info(f"FAQ context: {faq_context}")
 
     return StreamingResponse(
         generate_full_chat_answer(

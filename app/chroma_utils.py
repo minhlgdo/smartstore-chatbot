@@ -55,11 +55,12 @@ def get_relevant_faq(question: str, n_results: int = 3) -> str:
     results = collection.query(
         query_embeddings=[embedding],
         n_results=n_results,
-        include=["documents"],
+        include=["documents", "distances"],
     )
 
     if "documents" in results and results["documents"]:
         documents = results["documents"][0]
+        logging.info(f"Distances: {results['distances'][0]}")
         if documents:
             # join the documents into a single string
             return "\n\n".join(documents)
@@ -67,7 +68,7 @@ def get_relevant_faq(question: str, n_results: int = 3) -> str:
     return ""
 
 
-def is_relevant_query(query: str, threshold: float = 0.45) -> bool:
+def is_relevant_query(query: str, threshold: float = 0.6) -> bool:
     """
     Check the relevance of the query against the FAQ data stored in the vector store.
     Returns True if the best matching FAQ question has a distance below the threshold.

@@ -43,7 +43,7 @@ async def generate_followup_questions(history: str, faq_context: str, is_previou
         Conversation history: \n{history}
         """
 
-    logging.info(f"Request for follow-up questions: {request}")
+    # logging.info(f"Request for follow-up questions: {request}")
 
     raw_response = client.responses.create(
         model=OPENAI_MODEL,
